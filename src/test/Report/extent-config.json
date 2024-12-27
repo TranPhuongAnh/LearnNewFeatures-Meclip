@@ -1,0 +1,12 @@
+{
+  "theme": "STANDARD",
+  "encoding": "utf-8",
+  "protocol": "HTTPS",
+  "timelineEnabled": false,
+  "offlineMode": true,
+  "documentTitle": "Report | Phuong Anh",
+  "reportName": "MeClip Auto Viewing report",
+  "timeStampFormat": "MMM dd, yyyy HH:mm:ss a",
+  "js": "",
+  "css": ""
+}
