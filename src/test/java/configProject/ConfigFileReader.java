@@ -58,6 +58,18 @@ public class ConfigFileReader {
         return 30;
     }
 
+    public long getViewSeconds() {
+        String viewSeconds = properties.getProperty("viewSeconds");
+        if (viewSeconds != null) {
+            try {
+                return Long.parseLong(viewSeconds);
+            } catch (NumberFormatException e) {
+                throw new RuntimeException("Not able to parse value : " + viewSeconds + " in to Long");
+            }
+        }
+        return 30;
+    }
+
     // Lấy link truy cập
     public String getApplicationUrl() {
         String url = properties.getProperty("url");

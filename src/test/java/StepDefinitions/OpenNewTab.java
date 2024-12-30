@@ -4,12 +4,23 @@ import configProject.CommonMethod;
 import configProject.ConfigFileReader;
 import configProject.ExcelHelpers;
 import configProject.WebDriverManager;
+import io.cucumber.java.en.And;
+import io.cucumber.java.en.Given;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.openqa.selenium.*;
 
 import java.awt.*;
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.FileWriter;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 public class OpenNewTab extends WebDriverManager{
     WebDriver driver = null;
@@ -48,9 +59,9 @@ public class OpenNewTab extends WebDriverManager{
             driver.navigate().to(config.getApplicationUrl() + "login");
             common.waitForPageLoaded();
             System.out.println(driver.getCurrentUrl());
-//            if (driver.getCurrentUrl().equals("http://meclip.vn/")){
-//                logout_website();
-//            }
+            if (driver.getCurrentUrl().equals("http://meclip.vn/")){
+                logout_website();
+            }
             owb = "Mở trình duyệt thành công";
             System.out.println(owb);
         } catch (WebDriverException e){
@@ -59,6 +70,7 @@ public class OpenNewTab extends WebDriverManager{
         }
         return owb;
     }
+
     public String login_website(String sheetName, int rowNum) throws Exception {
         //Nhập thông tin từ file excel
         excel.setExcelFile(config.getDataPath(), sheetName);
@@ -72,10 +84,9 @@ public class OpenNewTab extends WebDriverManager{
         common.clickElement(Button_Submit);
         common.waitForPageLoaded();
 
-//        Assert.assertTrue(common.checkDisplay(Banner) == true, "Login không thành công");
-
         return phone;
     }
+
     public void fill_data(By element, String text) {
         driver = getDriver();
         try {
@@ -86,30 +97,198 @@ public class OpenNewTab extends WebDriverManager{
         common.sendKeyElement(element, text);
     }
 
-    public void open_new_tab_with_url(String sheetName, String phone, List<String> urls) throws Exception {
-        ArrayList<String> tabs = new ArrayList<>();
+    public List<DataExport> open_new_tab_with_url(String phone, List<String> urls) throws Exception {
+        ArrayList<String> tabs = new ArrayList<>(driver.getWindowHandles());
+        config.getImplicitlyWait();
 
-        // Mở 10 tab và truyền 10 url đầu tiên
+        // Mở tối đa 10 tab và truyền những url đầu tiên
         for (int i = 0 ; i < 10 && i < urls.size() ; i++){
+            String mess_error = null;
+
             if(i == 0){
                 driver.get(urls.get(i));
+                common.waitForPageLoaded();
                 // Lưu window handle của tab
                 tabs.add(driver.getWindowHandle());
             } else {
                 driver.switchTo().newWindow(WindowType.TAB);
                 // Lưu window handle của tab
                 tabs.add(driver.getWindowHandle());
+
                 driver.get(urls.get(i));
+                common.waitForPageLoaded();
             }
         }
 
-        // Sau khi mở 10 tab, Chuyển đổi qua lại giữa các tab và truyền URL vào từng tab
-        for (int i = 10; i < urls.size(); i++) {
-            // Chuyển đến tab mà bạn muốn cập nhật
-            driver.switchTo().window(tabs.get(i % 10)); // Chuyển sang tab tương ứng với i
-            driver.get(urls.get(i)); // Mở URL trong tab đó
-            System.out.println("Tab " + (i % 10 + 1) + ": " + driver.getCurrentUrl());
+        int tabs_size = tabs.size();
+        int a = 0;
+        if(tabs_size <= 10){
+            a = 0;
+        } else {
+            a = 10;
         }
+
+        // Sau khi mở 10 tab, Chuyển đổi qua lại giữa các tab và truyền URL vào từng tab
+        for (int i = a; i < urls.size(); i++) {
+
+            // Chuyển đến tab mà bạn muốn cập nhật
+            if (a == 10){
+                driver.switchTo().window(tabs.get(i % 10));
+            } else {
+                driver.switchTo().window(tabs.get(i));
+            }
+
+            int view_1 = 0;
+            int view_2 = 0;
+            String url = driver.getCurrentUrl();
+            String mess_error = null;
+            String reload = null;
+            boolean want_continue = false;
+            boolean want_break = false;
+
+            System.out.println("Tab " + (i % 10 + 1) + ": " + url);
+
+            // Kiểm tra các trường hợp ngoại lệ
+            if (common.checkDisplay(View) == false){    //Kiểm tra không tìm được link
+                mess_error = "Website lỗi, không mở được video";
+                dataExportList.add(new DataExport(phone, url, view_1, view_2, mess_error));
+                System.out.println(mess_error);
+                continue;
+            } else if (common.checkDisplay(Error) == true){     // Kiểm tra không play dc video
+                mess_error = "Video bị lỗi, không play được video";
+                dataExportList.add(new DataExport(phone, url, view_1, view_2, mess_error));
+                System.out.println(mess_error);
+                continue;
+            } else if (!url.equals(url)){  // Kiểm tra video bị next bài
+                String mess = "Video bị nhảy sang video khác";
+                System.out.println(mess);
+                reload = reload_page(url);
+
+                if (reload.contains("ERR_INTERNET_DISCONNECTED")){
+                    mess_error = "Kết nối Internet đang bị ngắt";
+                    dataExportList.add(new DataExport(phone, url, view_1, view_2, mess_error));
+                    System.out.println(mess_error);
+                    break;
+                } else if (common.checkDisplay(View) == false){    //Kiểm tra web lỗi, không tìm được view
+                    mess_error = mess + "\n" + "Website lỗi, không mở được video";
+                    dataExportList.add(new DataExport(phone, url, view_1, view_2, mess_error));
+                    System.out.println(mess_error);
+                    continue;
+                } else if (common.checkDisplay(Error) == true){     // Kiểm tra không play dc video
+                    mess_error = mess + "\n" + "Video bị lỗi, không play được video";
+                    dataExportList.add(new DataExport(phone, url, view_1, view_2, mess_error));
+                    System.out.println(mess_error);
+                    continue;
+                }
+
+                mess_error = mess;
+            }
+
+            // Kiểm tra video bị pause và play lại video
+            WebElement eVideo = driver.findElement(Video_Check);
+            String src_video = eVideo.getAttribute("src");
+            System.out.println("Video src: " + src_video);
+            if (src_video.equals("")){
+                mess_error = "Video bị pause";
+                common.clickElement(Video_Check);
+                if (src_video.equals("")){
+                    mess_error = "Click video lần 1: Video vẫn bị pause";
+                    common.clickElement(Video_Check);
+                    if (src_video.equals("")){
+                        mess_error = "Click video lần 2: Video vẫn bị pause -> out";
+                        want_continue = true;
+                    }
+                }
+                dataExportList.add(new DataExport(phone, url, view_1, view_2, mess_error));
+                System.out.println(mess_error);
+            }
+            if (want_continue == true){
+                continue;
+            }
+
+            // lấy giá trị view_1 của url cũ
+            view_1 = get_view_count();
+            System.out.println(view_1);
+            if (i % 10 == 0){
+                long time = config.getViewSeconds() * 1000;
+                Thread.sleep(time);
+            }
+
+            for (int j = 1 ; j < 3 ; j++){
+                Boolean want_con = false;
+                reload = reload_page(url);
+                if (reload.contains("ERR_INTERNET_DISCONNECTED")){
+                    mess_error = "Kết nối Internet đang bị ngắt";
+                    dataExportList.add(new DataExport(phone, url, view_1, view_2, mess_error));
+                    System.out.println(mess_error);
+                    want_break = true;
+                    break;
+                } else if (common.checkDisplay(View) == false){    //Kiểm tra web lỗi, không tìm được view
+                    mess_error = "Reload page lần " + j + ": Website lỗi, không mở được video";
+                    dataExportList.add(new DataExport(phone, url, view_1, view_2, mess_error));
+                    System.out.println(mess_error);
+                    want_con = true;
+                    want_continue = want_con;
+                    continue;
+                }
+
+                int view = get_view_count();
+                if (view > view_1){
+                    System.out.println("Reload page " + j + " lần");
+                    break;
+                }
+            }
+            if (want_break == true){
+                break;
+            } else if(want_continue == true){
+                continue;
+            }
+
+            // Lấy giá trị view video lần 2
+            view_2 = get_view_count();
+            if (view_2 > view_1){
+                System.out.println(view_2);
+                dataExportList.add(new DataExport(phone, url, view_1, view_2, mess_error));
+            } else {
+                reload = reload_page(url);   // Lần 3
+                System.out.println("Reload page 3 lần");
+                if (reload.contains("ERR_INTERNET_DISCONNECTED")) {
+                    mess_error = "Kết nối Internet đang bị ngắt";
+                    dataExportList.add(new DataExport(phone, url, view_1, view_2, mess_error));
+                    System.out.println(mess_error);
+                    break;
+                } else if (common.checkDisplay(View) == false){    //Kiểm tra web lỗi, không tìm được view
+                    mess_error = "Reload page lần 3: Website lỗi, không mở được video";
+                    dataExportList.add(new DataExport(phone, url, view_1, view_2, mess_error));
+                    System.out.println(mess_error);
+                    continue;
+                }
+
+                // Lấy giá trị view video lần 2
+                view_2 = get_view_count();
+                System.out.println(view_2);
+                // So sánh giá trị
+                if (view_2 <= view_1) {
+                    mess_error = "So sánh số lượng view không chính xác";
+                    dataExportList.add(new DataExport(phone, url, view_1, view_2, mess_error));
+                    System.out.println(mess_error);
+                    continue;
+                }
+                dataExportList.add(new DataExport(phone, url, view_1, view_2, mess_error));
+            }
+
+            // Mở URL mới trong tab đó
+            driver.get(urls.get(i));
+            if (a == 10){
+
+                System.out.println("Tab " + (i % 10 + 1) + " Url mới: " + driver.getCurrentUrl());
+            } else {
+                driver.switchTo().window(tabs.get(i));
+            }
+
+        }
+
+        return dataExportList;
     }
 
     public String reload_page(String url){
@@ -149,319 +328,68 @@ public class OpenNewTab extends WebDriverManager{
         return viewNumber;
     }
 
-    public void open_url_and_check_website(String sheetName, String phone, int view_1, int view_2) throws Exception {
-        // Mở url và lấy giá trị tổng url
-        excel.setExcelFile(config.getDataPath(), sheetName);
-        int sum_row = excel.getSumRow(config.getDataPath(), sheetName);
-        System.out.println(sum_row);
+    public void logout_website(){
+        common.clickElement(User);
+        common.clickElement(Button_Logout);
+        common.waitForPageLoaded();
 
-        for(int i = 1; i <= sum_row ; i++) {
-            int rownum = i;
-            String url = null;
-            String mess_error = null;
-            String reload = null;
-
-            url = excel.getCell("url", rownum);
-            if(url == ""){
-                mess_error = "Không có url trong sheet";
-                dataExportList.add(new DataExport(phone, url, view_1, view_2, mess_error));
-                System.out.println(mess_error);
-                continue;
-            }
-
-            System.out.println(url);
-            config.getImplicitlyWait();
-            try {
-                driver.navigate().to(url);
-                common.waitForPageLoaded();
-            } catch (WebDriverException e){
-                e.getRawMessage();
-                mess_error = "Kết nối Internet đang bị ngắt";
-                dataExportList.add(new DataExport(phone, url, view_1, view_2, mess_error));
-                System.out.println(mess_error);
-                break;
-            }
-
-            if ( driver.getCurrentUrl().equals("http://meclip.vn/404")){    //Kiểm tra không tìm được link
-                mess_error = "Video lỗi 404";
-                dataExportList.add(new DataExport(phone, url, view_1, view_2, mess_error));
-                System.out.println(mess_error);
-                continue;
-            } else if (driver.getTitle().equals("Server Error")){    //Kiểm tra lỗi server
-                mess_error = "500 | Server Error";
-                dataExportList.add(new DataExport(phone, url, view_1, view_2, mess_error));
-                System.out.println(mess_error);
-                continue;
-            } else if (common.checkDisplay(Error) == true){     // Kiểm tra không play dc video
-                mess_error = "Video bị lỗi, không play được video";
-                dataExportList.add(new DataExport(phone, url, view_1, view_2, mess_error));
-                System.out.println(mess_error);
-                continue;
-            } else if (driver.getTitle().equals("504 Gateway Time-out")){   // Kiểm tra lỗi time out
-                mess_error = "504 Gateway Time-out";
-                dataExportList.add(new DataExport(phone, url, view_1, view_2, mess_error));
-                System.out.println(mess_error);
-                continue;
-            } else if (!driver.getCurrentUrl().equals(url)){  // Kiểm tra video bị next bài
-                String mess = "Video bị nhảy sang video khác";
-                System.out.println(mess);
-                reload = reload_page(url);
-
-                if (reload.contains("ERR_INTERNET_DISCONNECTED")){
-                    mess_error = "Kết nối Internet đang bị ngắt";
-                    dataExportList.add(new DataExport(phone, url, view_1, view_2, mess_error));
-                    System.out.println(mess_error);
-                    break;
-                } else if ( driver.getCurrentUrl().equals("http://meclip.vn/404")){    //Kiểm tra không tìm được link
-                    mess_error = mess + "\n" + "Video lỗi 404";
-                    dataExportList.add(new DataExport(phone, url, view_1, view_2, mess_error));
-                    System.out.println(mess_error);
-                    continue;
-                } else if (driver.getTitle().equals("Server Error")){    //Kiểm tra lỗi server
-                    mess_error = mess + "\n" + "500 | Server Error";
-                    dataExportList.add(new DataExport(phone, url, view_1, view_2, mess_error));
-                    System.out.println(mess_error);
-                    continue;
-                } else if (common.checkDisplay(Error) == true){     // Kiểm tra không play dc video
-                    mess_error = mess + "\n" + "Video bị lỗi, không play được video";
-                    dataExportList.add(new DataExport(phone, url, view_1, view_2, mess_error));
-                    System.out.println(mess_error);
-                    continue;
-                } else if (driver.getTitle().equals("504 Gateway Time-out")) {  // Kiểm tra lỗi time out
-                    mess_error = mess + "\n" + "504 Gateway Time-out";
-                    dataExportList.add(new DataExport(phone, url, view_1, view_2, mess_error));
-                    System.out.println(mess_error);
-                    continue;
-                }
-                mess_error = mess;
-                dataExportList.add(new DataExport(phone, url, view_1, view_2, mess_error));
-            }
-        }
+        common.clickElement(Button_Login);
+        common.waitForPageLoaded();
+        System.out.println("Đăng xuất thành công");
     }
 
-    public boolean check_paused_video(){
-        String mess_error = null;
-        Boolean want_continue = false;
+    @Given("Runner tool main")
+    public void runner_tool_main() throws Exception {
+        String sh_1 = "Account";
+        String sh_2 = "Url";
+        int sum_row_1 = excel.getSumRow(config.getDataPath(), sh_1);
+        List<String> urls = excel.readUrlExcel(config.getDataPath(), sh_2);
+        System.out.println(urls.size());
 
-        // Kiểm tra video bị pause và play lại video
-        WebElement eVideo = driver.findElement(Video_Check);
-        String src_video = eVideo.getAttribute("src");
-        System.out.println("Video src: " + src_video);
-        if (src_video.equals("")){
-            mess_error = "Video bị pause";
-            common.clickElement(Video_Check);
-            if (src_video.equals("")){
-                mess_error = "Click video lần 1: Video vẫn bị pause";
-                common.clickElement(Video_Check);
-                if (src_video.equals("")){
-                    mess_error = "Click video lần 2: Video vẫn bị pause -> out";
-                    want_continue = true;
-                }
+        // Tạo file data
+        Workbook workbook = new XSSFWorkbook();
+        Sheet sh_write = excel.ExcelFileCreate(workbook);
+
+        // Tạo file trong thiết bị
+        File dir = new File("target/ouput");
+        dir.mkdirs();
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd_HHmmss");
+        String time = LocalDateTime.now().format(formatter);
+        String nameFile = "ToolReport_" + time + ".xlsx";
+        FileOutputStream fileExcelWrite = new FileOutputStream("target/ouput/" + nameFile);
+
+        for (int i = 1 ; i <= sum_row_1 ; i++){
+            String mess_error = null;
+
+            String internet = open_web_brower();
+            if (internet.contains("ERR_INTERNET_DISCONNECTED")){
+                mess_error = "Kết nối Internet đang bị ngắt";
+                dataExportList.add(new DataExport("", "", 0, 0, mess_error));
+                System.out.println(mess_error);
+                break;
             }
-            System.out.println(mess_error);
+
+            String phone = login_website(sh_1, i);
+            if (common.checkDisplay(Banner) == false){
+                mess_error = "Tài khoản không chính xác || Login không thành công";
+                dataExportList.add(new DataExport(phone, "", 0, 0, mess_error));
+                System.out.println(mess_error);
+                continue;
+            }
+
+            dataExportList = open_new_tab_with_url(phone, urls);
         }
 
-        return want_continue;
+        // Ghi data
+        excel.setData_Class(sh_write, dataExportList);
+        workbook.write(fileExcelWrite);
+        workbook.close();
+        fileExcelWrite.close();
     }
 
-    public List<DataExport> open_url_video_and_wait_run_video_time(String sheetName, int sec, String phone) throws Exception {
-        // Mở url và lấy giá trị tổng url
-        excel.setExcelFile(config.getDataPath(), sheetName);
-        int sum_row = excel.getSumRow(config.getDataPath(), sheetName);
-        System.out.println(sum_row);
-
-        for(int i = 1; i <= sum_row ; i++){
-            int rownum = i;
-            String url = null;
-            int view_1 = 0;
-            int view_2 = 0;
-            String mess_error = null;
-            String reload = null;
-            Boolean want_break = false;
-            Boolean want_continue = false;
-
-            url = excel.getCell("url", rownum);
-            if(url == ""){
-                mess_error = "Không có url trong sheet";
-                dataExportList.add(new DataExport(phone, url, view_1, view_2, mess_error));
-                System.out.println(mess_error);
-                continue;
-            }
-
-            System.out.println(url);
-            config.getImplicitlyWait();
-            try {
-                driver.navigate().to(url);
-                common.waitForPageLoaded();
-            } catch (WebDriverException e){
-                e.getRawMessage();
-                mess_error = "Kết nối Internet đang bị ngắt";
-                dataExportList.add(new DataExport(phone, url, view_1, view_2, mess_error));
-                System.out.println(mess_error);
-                break;
-            }
-
-            if ( driver.getCurrentUrl().equals("http://meclip.vn/404")){    //Kiểm tra không tìm được link
-                mess_error = "Video lỗi 404";
-                dataExportList.add(new DataExport(phone, url, view_1, view_2, mess_error));
-                System.out.println(mess_error);
-                continue;
-            } else if (driver.getTitle().equals("Server Error")){    //Kiểm tra lỗi server
-                mess_error = "500 | Server Error";
-                dataExportList.add(new DataExport(phone, url, view_1, view_2, mess_error));
-                System.out.println(mess_error);
-                continue;
-            } else if (common.checkDisplay(Error) == true){     // Kiểm tra không play dc video
-                mess_error = "Video bị lỗi, không play được video";
-                dataExportList.add(new DataExport(phone, url, view_1, view_2, mess_error));
-                System.out.println(mess_error);
-                continue;
-            } else if (driver.getTitle().equals("504 Gateway Time-out")){   // Kiểm tra lỗi time out
-                mess_error = "504 Gateway Time-out";
-                dataExportList.add(new DataExport(phone, url, view_1, view_2, mess_error));
-                System.out.println(mess_error);
-                continue;
-            } else if (!driver.getCurrentUrl().equals(url)){  // Kiểm tra video bị next bài
-                String mess = "Video bị nhảy sang video khác";
-                System.out.println(mess);
-                reload = reload_page(url);
-
-                if (reload.contains("ERR_INTERNET_DISCONNECTED")){
-                    mess_error = "Kết nối Internet đang bị ngắt";
-                    dataExportList.add(new DataExport(phone, url, view_1, view_2, mess_error));
-                    System.out.println(mess_error);
-                    break;
-                } else if ( driver.getCurrentUrl().equals("http://meclip.vn/404")){    //Kiểm tra không tìm được link
-                    mess_error = mess + "\n" + "Video lỗi 404";
-                    dataExportList.add(new DataExport(phone, url, view_1, view_2, mess_error));
-                    System.out.println(mess_error);
-                    continue;
-                } else if (driver.getTitle().equals("Server Error")){    //Kiểm tra lỗi server
-                    mess_error = mess + "\n" + "500 | Server Error";
-                    dataExportList.add(new DataExport(phone, url, view_1, view_2, mess_error));
-                    System.out.println(mess_error);
-                    continue;
-                } else if (common.checkDisplay(Error) == true){     // Kiểm tra không play dc video
-                    mess_error = mess + "\n" + "Video bị lỗi, không play được video";
-                    dataExportList.add(new DataExport(phone, url, view_1, view_2, mess_error));
-                    System.out.println(mess_error);
-                    continue;
-                } else if (driver.getTitle().equals("504 Gateway Time-out")) {  // Kiểm tra lỗi time out
-                    mess_error = mess + "\n" + "504 Gateway Time-out";
-                    dataExportList.add(new DataExport(phone, url, view_1, view_2, mess_error));
-                    System.out.println(mess_error);
-                    continue;
-                }
-
-                mess_error = mess;
-            }
-            // Kiểm tra video bị pause và play lại video
-            WebElement eVideo = driver.findElement(Video_Check);
-            String src_video = eVideo.getAttribute("src");
-            System.out.println("Video src: " + src_video);
-            if (src_video.equals("")){
-                mess_error = "Video bị pause";
-                common.clickElement(Video_Check);
-                if (src_video.equals("")){
-                    mess_error = "Click video lần 1: Video vẫn bị pause";
-                    common.clickElement(Video_Check);
-                    if (src_video.equals("")){
-                        mess_error = "Click video lần 2: Video vẫn bị pause -> out";
-                        want_continue = true;
-                    }
-                }
-                dataExportList.add(new DataExport(phone, url, view_1, view_2, mess_error));
-                System.out.println(mess_error);
-            }
-            if (want_continue == true){
-                continue;
-            }
-
-            // Lấy giá trị view video lần 1
-            view_1 = get_view_count();
-            System.out.println(view_1);
-
-            // Đợi video chạy và lấy giá trị view
-            int mini_sec = sec * 1000;
-            Thread.sleep(mini_sec);
-//            common.hoverAndClick(Video, Pause);
-
-            for (int j = 1 ; j < 3 ; j++){
-                Boolean want_con = false;
-                reload = reload_page(url);
-                if (reload.contains("ERR_INTERNET_DISCONNECTED")){
-                    mess_error = "Kết nối Internet đang bị ngắt";
-                    dataExportList.add(new DataExport(phone, url, view_1, view_2, mess_error));
-                    System.out.println(mess_error);
-                    want_break = true;
-                    break;
-                } else if (driver.getCurrentUrl().equals("http://meclip.vn/404")){
-                    mess_error = "Reload page lần " + j + ": Lỗi 404";
-                    dataExportList.add(new DataExport(phone, url, view_1, view_2, mess_error));
-                    System.out.println(mess_error);
-                    want_con = true;
-                    want_continue = want_con;
-                    continue;
-                } else if (driver.getTitle().equals("Server Error")){
-                    mess_error = "Reload page lần " + j + ": Lỗi 500 | Server Error";
-                    dataExportList.add(new DataExport(phone, url, view_1, view_2, mess_error));
-                    System.out.println(mess_error);
-                    want_con = true;
-                    want_continue = want_con;
-                    continue;
-                }
-
-                int view = get_view_count();
-                if (view > view_1){
-                    System.out.println("Reload page " + j + " lần");
-                    break;
-                }
-            }
-            if (want_break == true){
-                break;
-            } else if(want_continue == true){
-                continue;
-            }
-
-            // Lấy giá trị view video lần 2
-            view_2 = get_view_count();
-            if (view_2 > view_1){
-                System.out.println(view_2);
-                dataExportList.add(new DataExport(phone, url, view_1, view_2, mess_error));
-            } else {
-                reload = reload_page(url);   // Lần 3
-                System.out.println("Reload page 3 lần");
-                if (reload.contains("ERR_INTERNET_DISCONNECTED")){
-                    mess_error = "Kết nối Internet đang bị ngắt";
-                    dataExportList.add(new DataExport(phone, url, view_1, view_2, mess_error));
-                    System.out.println(mess_error);
-                    break;
-                } else if (driver.getCurrentUrl().equals("http://meclip.vn/404")){
-                    mess_error = "Reload page lần 3 : Lỗi 404";
-                    dataExportList.add(new DataExport(phone, url, view_1, view_2, mess_error));
-                    System.out.println(mess_error);
-                    continue;
-                } else if (driver.getTitle().equals("Server Error")){
-                    mess_error = "Reload page lần 3: Lỗi 500 | Server Error";
-                    dataExportList.add(new DataExport(phone, url, view_1, view_2, mess_error));
-                    System.out.println(mess_error);
-                    continue;
-                }
-
-                // Lấy giá trị view video lần 2
-                view_2 = get_view_count();
-                System.out.println(view_2);
-                // So sánh giá trị
-                if (view_2 <= view_1){
-                    mess_error = "So sánh số lượng view không chính xác";
-                    dataExportList.add(new DataExport(phone, url, view_1, view_2, mess_error));
-                    System.out.println(mess_error);
-                    continue;
-                }
-                dataExportList.add(new DataExport(phone, url, view_1, view_2, mess_error));
-            }
-
-        }
-        return dataExportList;
+    @And("Close browser and all tabs")
+    public void close_browser_and_all_tabs() throws InterruptedException {
+        Steps.getInstance().CloseDriver();
+        System.out.println("Đóng trình duyệt");
     }
 }

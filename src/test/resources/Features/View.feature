@@ -7,8 +7,8 @@ Feature: View tool MeClip
 
   @View
   Scenario Outline: Check view clip
-    Given Run tool and video viewing time is <second>
-    And Close browser
+    Given Runner tool main
+    And Close browser and all tabs
 
     Examples:
     | second |

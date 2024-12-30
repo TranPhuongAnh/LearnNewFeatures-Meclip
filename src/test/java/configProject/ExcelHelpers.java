@@ -205,7 +205,7 @@ public class ExcelHelpers {
     public List<String> readUrlExcel(String path, String sheetName) throws Exception {
         List<String> urls = new ArrayList<>();
         int sum_row = getSumRow(path, sheetName);
-        for (int i = 0 ; i < sum_row ; i++){
+        for (int i = 1 ; i <= sum_row ; i++){
             Row r = sh.getRow(i);
             if (r != null){
                 Cell c = r.getCell(0);
