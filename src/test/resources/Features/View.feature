@@ -8,7 +8,7 @@ Feature: View tool MeClip
   @View
   Scenario Outline: Check view clip
     Given Runner tool main
-    And Close browser and all tabs
+#    And Close browser and all tabs
 
     Examples:
     | second |

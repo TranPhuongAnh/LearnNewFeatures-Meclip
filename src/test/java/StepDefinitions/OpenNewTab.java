@@ -97,28 +97,30 @@ public class OpenNewTab extends WebDriverManager{
         common.sendKeyElement(element, text);
     }
 
-    public List<DataExport> open_new_tab_with_url(String phone, List<String> urls) throws Exception {
-        ArrayList<String> tabs = new ArrayList<>(driver.getWindowHandles());
-        config.getImplicitlyWait();
-
+    public void open_new_tabs(List<String> urls, ArrayList<String> tabs){
         // Mở tối đa 10 tab và truyền những url đầu tiên
         for (int i = 0 ; i < 10 && i < urls.size() ; i++){
             String mess_error = null;
 
             if(i == 0){
                 driver.get(urls.get(i));
-                common.waitForPageLoaded();
                 // Lưu window handle của tab
                 tabs.add(driver.getWindowHandle());
             } else {
                 driver.switchTo().newWindow(WindowType.TAB);
+                driver.get(urls.get(i));
                 // Lưu window handle của tab
                 tabs.add(driver.getWindowHandle());
-
-                driver.get(urls.get(i));
-                common.waitForPageLoaded();
             }
         }
+    }
+
+    public List<DataExport> check_view_all_urls(String phone, List<String> urls) throws Exception {
+        ArrayList<String> tabs = new ArrayList<>(driver.getWindowHandles());
+        config.getImplicitlyWait();
+
+        // Mở tối đa 10 tab và truyền những url đầu tiên
+        open_new_tabs(urls, tabs);
 
         int tabs_size = tabs.size();
         int a = 0;
@@ -140,13 +142,19 @@ public class OpenNewTab extends WebDriverManager{
 
             int view_1 = 0;
             int view_2 = 0;
-            String url = driver.getCurrentUrl();
+            String url = null;
             String mess_error = null;
             String reload = null;
             boolean want_continue = false;
             boolean want_break = false;
 
-            System.out.println("Tab " + (i % 10 + 1) + ": " + url);
+            if (a == 10){
+                url = urls.get(i - 10);
+                System.out.println("Tab " + (i % 10 + 1) + ": " + url);
+            } else {
+                url = urls.get(i);
+                System.out.println("Tab " + (i + 1) + ": " + url);
+            }
 
             // Kiểm tra các trường hợp ngoại lệ
             if (common.checkDisplay(View) == false){    //Kiểm tra không tìm được link
@@ -159,7 +167,7 @@ public class OpenNewTab extends WebDriverManager{
                 dataExportList.add(new DataExport(phone, url, view_1, view_2, mess_error));
                 System.out.println(mess_error);
                 continue;
-            } else if (!url.equals(url)){  // Kiểm tra video bị next bài
+            } else if (!driver.getCurrentUrl().equals(url)){  // Kiểm tra video bị next bài
                 String mess = "Video bị nhảy sang video khác";
                 System.out.println(mess);
                 reload = reload_page(url);
@@ -209,9 +217,10 @@ public class OpenNewTab extends WebDriverManager{
             // lấy giá trị view_1 của url cũ
             view_1 = get_view_count();
             System.out.println(view_1);
-            if (i % 10 == 0){
+            if ((a == 10 && i % 10 == 0) || (a == 0 && i == 0)){
                 long time = config.getViewSeconds() * 1000;
                 Thread.sleep(time);
+                System.out.println("Chờ video chạy: " + time);
             }
 
             for (int j = 1 ; j < 3 ; j++){
@@ -278,14 +287,12 @@ public class OpenNewTab extends WebDriverManager{
             }
 
             // Mở URL mới trong tab đó
-            driver.get(urls.get(i));
             if (a == 10){
-
-                System.out.println("Tab " + (i % 10 + 1) + " Url mới: " + driver.getCurrentUrl());
+                driver.get(urls.get(i));
+                System.out.println(" Url mới: " + driver.getCurrentUrl());
             } else {
-                driver.switchTo().window(tabs.get(i));
+                System.out.println("Không có url mới");
             }
-
         }
 
         return dataExportList;
@@ -333,9 +340,15 @@ public class OpenNewTab extends WebDriverManager{
         common.clickElement(Button_Logout);
         common.waitForPageLoaded();
 
+        if (common.checkDisplay(Button_Login) == false){
+            common.clickElement(User);
+            common.clickElement(Button_Logout);
+            common.waitForPageLoaded();
+            System.out.println("Logout failed, try again");
+        }
         common.clickElement(Button_Login);
         common.waitForPageLoaded();
-        System.out.println("Đăng xuất thành công");
+        System.out.println("Logout successful");
     }
 
     @Given("Runner tool main")
@@ -344,7 +357,6 @@ public class OpenNewTab extends WebDriverManager{
         String sh_2 = "Url";
         int sum_row_1 = excel.getSumRow(config.getDataPath(), sh_1);
         List<String> urls = excel.readUrlExcel(config.getDataPath(), sh_2);
-        System.out.println(urls.size());
 
         // Tạo file data
         Workbook workbook = new XSSFWorkbook();
@@ -377,7 +389,7 @@ public class OpenNewTab extends WebDriverManager{
                 continue;
             }
 
-            dataExportList = open_new_tab_with_url(phone, urls);
+            dataExportList = check_view_all_urls(phone, urls);
         }
 
         // Ghi data
