@@ -110,7 +110,7 @@ public class CommonMethod extends WebDriverManager {
         WebElement hover_A = driver.findElement(A);
         WebElement click_B = driver.findElement(B);
         Actions actions = new Actions(driver);
-        actions.moveToElement(hover_A).click(click_B).build().perform();
+        actions.moveToElement(hover_A).moveToElement(click_B).click().build().perform();
 //        actions.moveToElement(hover_A).build().perform(); //Hai dòng 97-98 tác dụng tương tự dòng 96
 //        click_B.click();
     }

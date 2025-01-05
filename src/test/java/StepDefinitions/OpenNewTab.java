@@ -10,6 +10,7 @@ import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.openqa.selenium.*;
+import org.openqa.selenium.interactions.Actions;
 
 import java.awt.*;
 import java.io.File;
@@ -42,9 +43,9 @@ public class OpenNewTab extends WebDriverManager{
 
     //Video Screen
     private By Video = By.xpath("//section/div[1]/div[1]/div[1]");
-    private By Video_Check = By.xpath("//section/div[1]/div[1]/div[1]/div/div[2]/div[4]/video");
+    private By Video_Check = By.xpath("//*[@id='video-player']/div[2]/div[4]/video");
     private By View = By.xpath("//div[@class='video__view-counter left']");
-    private By Pause = By.xpath("//*[@id='video-player']/div[2]/div[12]/div[5]/div[2]/div[1]");
+    private By Progress_Bar = By.xpath("//*[@id='video-player']/div[2]/div[12]/div[5]/div[1]/div");
     private By Error = By.xpath("//div[@class='jw-error-msg jw-info-overlay jw-reset']");
 
     // Export data
@@ -97,26 +98,57 @@ public class OpenNewTab extends WebDriverManager{
         common.sendKeyElement(element, text);
     }
 
-    public void open_new_tabs(List<String> urls, ArrayList<String> tabs){
+    public void click_on_the_progress_bar(){
+        WebElement progress_bar = driver.findElement(Progress_Bar);
+
+        // Tạo action để di chuột
+        Actions actions = new Actions(driver);
+
+        // Lấy vị trí của thanh tiến trình
+        int x = progress_bar.getLocation().getX();
+        int y = progress_bar.getLocation().getY();
+        int width = progress_bar.getSize().getWidth();
+
+        // Tính toán điểm click tại vị trí đầu tiên của thanh tiến trình (với left = 0%)
+        int xOffset = x; // Lúc này là vị trí x của thanh tiến trình, tức là left = 0%
+
+        // Di chuột vào vị trí đầu thanh tiến trình
+        actions.moveToElement(progress_bar, xOffset, 0).click().perform();
+
+        try {
+            Thread.sleep(1000);
+        } catch (Exception e){
+            e.printStackTrace();
+        }
+    }
+
+    public void open_new_tabs(List<String> urls, Set<String> tabs){
         // Mở tối đa 10 tab và truyền những url đầu tiên
         for (int i = 0 ; i < 10 && i < urls.size() ; i++){
             String mess_error = null;
 
             if(i == 0){
-                driver.get(urls.get(i));
                 // Lưu window handle của tab
                 tabs.add(driver.getWindowHandle());
+
+                driver.get(urls.get(i));
+
             } else {
+                // Mở tab tiếp theo
                 driver.switchTo().newWindow(WindowType.TAB);
-                driver.get(urls.get(i));
                 // Lưu window handle của tab
                 tabs.add(driver.getWindowHandle());
+
+                driver.get(urls.get(i));
+
+                // Nhấn video play lại từ đầu
+                click_on_the_progress_bar();
             }
         }
     }
 
     public List<DataExport> check_view_all_urls(String phone, List<String> urls) throws Exception {
-        ArrayList<String> tabs = new ArrayList<>(driver.getWindowHandles());
+        Set<String> tabs = driver.getWindowHandles();
         config.getImplicitlyWait();
 
         // Mở tối đa 10 tab và truyền những url đầu tiên
@@ -135,9 +167,9 @@ public class OpenNewTab extends WebDriverManager{
 
             // Chuyển đến tab mà bạn muốn cập nhật
             if (a == 10){
-                driver.switchTo().window(tabs.get(i % 10));
+                driver.switchTo().window((String) tabs.toArray()[i % 10]);
             } else {
-                driver.switchTo().window(tabs.get(i));
+                driver.switchTo().window((String) tabs.toArray()[i]);
             }
 
             int view_1 = 0;
@@ -217,6 +249,7 @@ public class OpenNewTab extends WebDriverManager{
             // lấy giá trị view_1 của url cũ
             view_1 = get_view_count();
             System.out.println(view_1);
+
             if ((a == 10 && i % 10 == 0) || (a == 0 && i == 0)){
                 long time = config.getViewSeconds() * 1000;
                 Thread.sleep(time);
@@ -289,6 +322,10 @@ public class OpenNewTab extends WebDriverManager{
             // Mở URL mới trong tab đó
             if (a == 10){
                 driver.get(urls.get(i));
+
+                // Nhấn video play lại từ đầu
+                click_on_the_progress_bar();
+
                 System.out.println(" Url mới: " + driver.getCurrentUrl());
             } else {
                 System.out.println("Không có url mới");
