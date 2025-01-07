@@ -70,6 +70,18 @@ public class ConfigFileReader {
         return 30;
     }
 
+    public int getTabNumber() {
+        String tabNumber = properties.getProperty("tabNumber");
+        if (tabNumber != null) {
+            try {
+                return Integer.parseInt(tabNumber);
+            } catch (NumberFormatException e) {
+                throw new RuntimeException("Not able to parse value : " + tabNumber + " in to Long");
+            }
+        }
+        return 10;
+    }
+
     // Lấy link truy cập
     public String getApplicationUrl() {
         String url = properties.getProperty("url");

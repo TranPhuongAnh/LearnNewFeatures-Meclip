@@ -98,41 +98,42 @@ public class OpenNewTab extends WebDriverManager{
         common.sendKeyElement(element, text);
     }
 
-    public void click_on_the_progress_bar(){
-        WebElement progress_bar = driver.findElement(Progress_Bar);
+    public void reset_video(){
+        // Sử dụng JavaScript để reset video về 0% và bắt đầu lại từ đầu
+        JavascriptExecutor js = (JavascriptExecutor) driver;
+        js.executeScript("document.querySelector('Video').currentTime = 0");
+    }
 
-        // Tạo action để di chuột
-        Actions actions = new Actions(driver);
+    // Không dùng được hàm này
+    public void reset_video_java(){
+        // Hover vào video để hiển thị thanh tiến trình
+        common.hover(Video);
+
+        WebElement progress_bar = driver.findElement(Progress_Bar);
 
         // Lấy vị trí của thanh tiến trình
         int x = progress_bar.getLocation().getX();
         int y = progress_bar.getLocation().getY();
         int width = progress_bar.getSize().getWidth();
 
-        // Tính toán điểm click tại vị trí đầu tiên của thanh tiến trình (với left = 0%)
-        int xOffset = x; // Lúc này là vị trí x của thanh tiến trình, tức là left = 0%
-
+        // Tạo action để di chuột
+        Actions actions = new Actions(driver);
         // Di chuột vào vị trí đầu thanh tiến trình
-        actions.moveToElement(progress_bar, xOffset, 0).click().perform();
-
-        try {
-            Thread.sleep(1000);
-        } catch (Exception e){
-            e.printStackTrace();
-        }
+        actions.moveByOffset(x,y)
+                .moveByOffset(width * 0, 0)
+                .click().perform();
     }
 
-    public void open_new_tabs(List<String> urls, Set<String> tabs){
-        // Mở tối đa 10 tab và truyền những url đầu tiên
-        for (int i = 0 ; i < 10 && i < urls.size() ; i++){
+    public void open_new_tabs(List<String> urls, Set<String> tabs, int tabNum){
+        config.getImplicitlyWait();
+        // Mở tối đa "tabNum" tab và truyền những url đầu tiên
+        for (int i = 0 ; i < tabNum && i < urls.size() ; i++){
             String mess_error = null;
 
             if(i == 0){
                 // Lưu window handle của tab
                 tabs.add(driver.getWindowHandle());
-
                 driver.get(urls.get(i));
-
             } else {
                 // Mở tab tiếp theo
                 driver.switchTo().newWindow(WindowType.TAB);
@@ -140,9 +141,6 @@ public class OpenNewTab extends WebDriverManager{
                 tabs.add(driver.getWindowHandle());
 
                 driver.get(urls.get(i));
-
-                // Nhấn video play lại từ đầu
-                click_on_the_progress_bar();
             }
         }
     }
@@ -150,24 +148,16 @@ public class OpenNewTab extends WebDriverManager{
     public List<DataExport> check_view_all_urls(String phone, List<String> urls) throws Exception {
         Set<String> tabs = driver.getWindowHandles();
         config.getImplicitlyWait();
+        int tabNum = config.getTabNumber();
+        // Mở tối đa "tabNum" tab và truyền những url đầu tiên
+        open_new_tabs(urls, tabs, tabNum);
 
-        // Mở tối đa 10 tab và truyền những url đầu tiên
-        open_new_tabs(urls, tabs);
-
-        int tabs_size = tabs.size();
-        int a = 0;
-        if(tabs_size <= 10){
-            a = 0;
-        } else {
-            a = 10;
-        }
-
-        // Sau khi mở 10 tab, Chuyển đổi qua lại giữa các tab và truyền URL vào từng tab
-        for (int i = a; i < urls.size(); i++) {
+        // Sau khi mở "tabNum" tab, Chuyển đổi qua lại giữa các tab và truyền URL vào từng tab
+        for (int i = 0; i < urls.size(); i++) {
 
             // Chuyển đến tab mà bạn muốn cập nhật
-            if (a == 10){
-                driver.switchTo().window((String) tabs.toArray()[i % 10]);
+            if (urls.size() > tabNum && i >= tabNum){
+                driver.switchTo().window((String) tabs.toArray()[i % tabNum]);
             } else {
                 driver.switchTo().window((String) tabs.toArray()[i]);
             }
@@ -180,11 +170,10 @@ public class OpenNewTab extends WebDriverManager{
             boolean want_continue = false;
             boolean want_break = false;
 
-            if (a == 10){
-                url = urls.get(i - 10);
-                System.out.println("Tab " + (i % 10 + 1) + ": " + url);
+            url = urls.get(i);
+            if (i >= tabNum){
+                System.out.println("Tab " + (i % tabNum + 1) + ": " + url);
             } else {
-                url = urls.get(i);
                 System.out.println("Tab " + (i + 1) + ": " + url);
             }
 
@@ -193,11 +182,13 @@ public class OpenNewTab extends WebDriverManager{
                 mess_error = "Website lỗi, không mở được video";
                 dataExportList.add(new DataExport(phone, url, view_1, view_2, mess_error));
                 System.out.println(mess_error);
+                open_new_url(urls, i, tabNum);
                 continue;
             } else if (common.checkDisplay(Error) == true){     // Kiểm tra không play dc video
                 mess_error = "Video bị lỗi, không play được video";
                 dataExportList.add(new DataExport(phone, url, view_1, view_2, mess_error));
                 System.out.println(mess_error);
+                open_new_url(urls, i, tabNum);
                 continue;
             } else if (!driver.getCurrentUrl().equals(url)){  // Kiểm tra video bị next bài
                 String mess = "Video bị nhảy sang video khác";
@@ -213,11 +204,13 @@ public class OpenNewTab extends WebDriverManager{
                     mess_error = mess + "\n" + "Website lỗi, không mở được video";
                     dataExportList.add(new DataExport(phone, url, view_1, view_2, mess_error));
                     System.out.println(mess_error);
+                    open_new_url(urls, i, tabNum);
                     continue;
                 } else if (common.checkDisplay(Error) == true){     // Kiểm tra không play dc video
                     mess_error = mess + "\n" + "Video bị lỗi, không play được video";
                     dataExportList.add(new DataExport(phone, url, view_1, view_2, mess_error));
                     System.out.println(mess_error);
+                    open_new_url(urls, i, tabNum);
                     continue;
                 }
 
@@ -230,10 +223,10 @@ public class OpenNewTab extends WebDriverManager{
             System.out.println("Video src: " + src_video);
             if (src_video.equals("")){
                 mess_error = "Video bị pause";
-                common.clickElement(Video_Check);
+                common.clickElement(Video);
                 if (src_video.equals("")){
                     mess_error = "Click video lần 1: Video vẫn bị pause";
-                    common.clickElement(Video_Check);
+                    common.clickElement(Video);
                     if (src_video.equals("")){
                         mess_error = "Click video lần 2: Video vẫn bị pause -> out";
                         want_continue = true;
@@ -243,18 +236,14 @@ public class OpenNewTab extends WebDriverManager{
                 System.out.println(mess_error);
             }
             if (want_continue == true){
+                open_new_url(urls, i, tabNum);
                 continue;
             }
 
             // lấy giá trị view_1 của url cũ
             view_1 = get_view_count();
             System.out.println(view_1);
-
-            if ((a == 10 && i % 10 == 0) || (a == 0 && i == 0)){
-                long time = config.getViewSeconds() * 1000;
-                Thread.sleep(time);
-                System.out.println("Chờ video chạy: " + time);
-            }
+            video_waitting_time();
 
             for (int j = 1 ; j < 3 ; j++){
                 Boolean want_con = false;
@@ -283,6 +272,7 @@ public class OpenNewTab extends WebDriverManager{
             if (want_break == true){
                 break;
             } else if(want_continue == true){
+                open_new_url(urls, i, tabNum);
                 continue;
             }
 
@@ -303,6 +293,7 @@ public class OpenNewTab extends WebDriverManager{
                     mess_error = "Reload page lần 3: Website lỗi, không mở được video";
                     dataExportList.add(new DataExport(phone, url, view_1, view_2, mess_error));
                     System.out.println(mess_error);
+                    open_new_url(urls, i, tabNum);
                     continue;
                 }
 
@@ -314,25 +305,38 @@ public class OpenNewTab extends WebDriverManager{
                     mess_error = "So sánh số lượng view không chính xác";
                     dataExportList.add(new DataExport(phone, url, view_1, view_2, mess_error));
                     System.out.println(mess_error);
+                    open_new_url(urls, i, tabNum);
                     continue;
                 }
                 dataExportList.add(new DataExport(phone, url, view_1, view_2, mess_error));
             }
 
             // Mở URL mới trong tab đó
-            if (a == 10){
-                driver.get(urls.get(i));
-
-                // Nhấn video play lại từ đầu
-                click_on_the_progress_bar();
-
-                System.out.println(" Url mới: " + driver.getCurrentUrl());
-            } else {
-                System.out.println("Không có url mới");
-            }
+            open_new_url(urls, i, tabNum);
         }
 
         return dataExportList;
+    }
+
+    public void open_new_url(List<String> urls, int i, int tabNum){
+        // Mở URL mới trong tab đó
+        if (urls.size() > tabNum && i < (urls.size() - tabNum)){
+            driver.get(urls.get(i+tabNum));
+            System.out.println("Url mới: " + driver.getCurrentUrl());
+        } else {
+            System.out.println("Không có url mới");
+        }
+    }
+
+    public void video_waitting_time(){
+        try {
+            reset_video();
+            long time = config.getViewSeconds() * 1000;
+            System.out.println("Chờ video chạy: " + time);
+            Thread.sleep(time);
+        } catch (Exception e){
+            e.printStackTrace();
+        }
     }
 
     public String reload_page(String url){
