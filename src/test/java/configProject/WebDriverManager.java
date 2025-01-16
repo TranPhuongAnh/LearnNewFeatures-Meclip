@@ -2,6 +2,7 @@ package configProject;
 
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.chrome.ChromeDriver;
+import org.openqa.selenium.chrome.ChromeOptions;
 import org.openqa.selenium.edge.EdgeDriver;
 import org.openqa.selenium.firefox.FirefoxDriver;
 import org.openqa.selenium.ie.InternetExplorerDriver;
@@ -13,9 +14,21 @@ public class WebDriverManager {
 //    private static final String CHROME_DRIVER = "webdriver.chrome.driver"; //Cấu hình biến trỏ đến file webDriver cứng, selenium v4 trở đi k cần webDriver cứng
     private static final WebDriverManager webDriverManager = new WebDriverManager();
     public static CommonMethod commonMethod;
-    private static WebDriver driver;
+    private static WebDriver driver = initializeWebDriver();
     private static EnvironmentType environmentType;
     private static DriverType driverType;
+
+    // Phương thức để cấu hình và khởi tạo WebDriver
+    public static WebDriver initializeWebDriver() {
+        // Tạo một ChromeOptions đối tượng và loại bỏ chế độ headless
+        ChromeOptions options = new ChromeOptions();
+        options.addArguments("--disable-gpu");
+        options.addArguments("--start-maximized");
+        options.addArguments("--autoplay-policy=no-user-gesture-required"); // Tắt chính sách autoplay
+
+        // Khởi tạo WebDriver với các cài đặt đã cấu hình
+        return new ChromeDriver(options);
+    }
 
     //Hàm sử dụng được tất cả hàm của class WebDriverManager
     public static WebDriverManager getInstance() {

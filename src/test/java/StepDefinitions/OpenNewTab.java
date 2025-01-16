@@ -28,7 +28,6 @@ public class OpenNewTab extends WebDriverManager{
     ConfigFileReader config = new ConfigFileReader();
     CommonMethod common = new CommonMethod(getDriver());
     ExcelHelpers excel = new ExcelHelpers();
-    FileWriter writer = null;
 
     //Login Screen
     private By InputPhone = By.xpath("//input[@id='username']");
@@ -104,36 +103,32 @@ public class OpenNewTab extends WebDriverManager{
         js.executeScript("document.querySelector('Video').currentTime = 0");
     }
 
-    // Không dùng được hàm này
-    public void reset_video_java(){
-        // Hover vào video để hiển thị thanh tiến trình
-        common.hover(Video);
-
-        WebElement progress_bar = driver.findElement(Progress_Bar);
-
-        // Lấy vị trí của thanh tiến trình
-        int x = progress_bar.getLocation().getX();
-        int y = progress_bar.getLocation().getY();
-        int width = progress_bar.getSize().getWidth();
-
-        // Tạo action để di chuột
-        Actions actions = new Actions(driver);
-        // Di chuột vào vị trí đầu thanh tiến trình
-        actions.moveByOffset(x,y)
-                .moveByOffset(width * 0, 0)
-                .click().perform();
+    public void autoplay_video(){
+        // Đảm bảo video tự động phát trong mỗi tab
+        ((JavascriptExecutor) driver).executeScript(
+                "var video = document.querySelector('Video');" +
+                        "if (video) { video.play(); }"
+        );
     }
 
     public void open_new_tabs(List<String> urls, Set<String> tabs, int tabNum){
         config.getImplicitlyWait();
         // Mở tối đa "tabNum" tab và truyền những url đầu tiên
         for (int i = 0 ; i < tabNum && i < urls.size() ; i++){
-            String mess_error = null;
-
             if(i == 0){
                 // Lưu window handle của tab
                 tabs.add(driver.getWindowHandle());
                 driver.get(urls.get(i));
+
+                // Kiểm tra các trường hợp ngoại lệ
+                if (common.checkDisplay(View) == false){    //Kiểm tra không tìm được link
+                    System.out.println("Website lỗi, không mở được video");
+                } else if (common.checkDisplay(Error) == true){     // Kiểm tra không play dc video
+                    System.out.println("Video bị lỗi, không play được video");
+                } else {
+                    autoplay_video();
+                    reset_video();
+                }
             } else {
                 // Mở tab tiếp theo
                 driver.switchTo().newWindow(WindowType.TAB);
@@ -141,6 +136,16 @@ public class OpenNewTab extends WebDriverManager{
                 tabs.add(driver.getWindowHandle());
 
                 driver.get(urls.get(i));
+
+                // Kiểm tra các trường hợp ngoại lệ
+                if (common.checkDisplay(View) == false){    //Kiểm tra không tìm được link
+                    System.out.println("Website lỗi, không mở được video");
+                } else if (common.checkDisplay(Error) == true){     // Kiểm tra không play dc video
+                    System.out.println("Video bị lỗi, không play được video");
+                } else {
+                    autoplay_video();
+                    reset_video();
+                }
             }
         }
     }
@@ -243,7 +248,7 @@ public class OpenNewTab extends WebDriverManager{
             // lấy giá trị view_1 của url cũ
             view_1 = get_view_count();
             System.out.println(view_1);
-            video_waitting_time();
+            video_waitting_time(urls, i, tabNum);
 
             for (int j = 1 ; j < 3 ; j++){
                 Boolean want_con = false;
@@ -323,17 +328,29 @@ public class OpenNewTab extends WebDriverManager{
         if (urls.size() > tabNum && i < (urls.size() - tabNum)){
             driver.get(urls.get(i+tabNum));
             System.out.println("Url mới: " + driver.getCurrentUrl());
+
+            // Kiểm tra các trường hợp ngoại lệ
+            if (common.checkDisplay(View) == false){    //Kiểm tra không tìm được link
+                System.out.println("Website lỗi, không mở được video");
+            } else if (common.checkDisplay(Error) == true){     // Kiểm tra không play dc video
+                System.out.println("Video bị lỗi, không play được video");
+            } else {
+                autoplay_video();
+                reset_video();
+            }
         } else {
             System.out.println("Không có url mới");
         }
     }
 
-    public void video_waitting_time(){
+    public void video_waitting_time(List<String> urls, int i, int tabNum){
         try {
-            reset_video();
-            long time = config.getViewSeconds() * 1000;
-            System.out.println("Chờ video chạy: " + time);
-            Thread.sleep(time);
+            if (i == 0 || i > tabNum && i % tabNum == 0){
+                reset_video();
+                long time = config.getViewSeconds() * 1000;
+                System.out.println("Chờ video chạy: " + time);
+                Thread.sleep(time);
+            }
         } catch (Exception e){
             e.printStackTrace();
         }
